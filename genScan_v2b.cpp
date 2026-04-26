@@ -16,8 +16,8 @@
 #include <fstream>             // ifstream, etc.
 #include <cstdlib>             // exit()
 #include <omp.h>               // omp_get_wtime()
-#include <algorithm>           // search()
-#include "OO_MPI_IO.h"         // ParallelReader
+//#include <algorithm>           // search()
+//#include "OO_MPI_IO.h"         // ParallelReader
 using namespace std;
 
 
@@ -109,37 +109,22 @@ void printResults(const string& subSeq, long numSubSeqs,
 
 // --------- main function ---------------------
 int main(int argc, char** argv) { 
-  string fileName;
-  string subSeq;
+    string fileName;
+    string subSeq;
+    string dna;
 
-  double startTotalTime = omp_get_wtime();
-  processCommandLineArgs(argc, argv, fileName, subSeq);
-
-  long count = 0;
-  int P = 0;
-  double readTime = 0.0, scanTime = 0.0;
-
-  #pragma omp parallel reduction(+:count)
-  {
-    P = omp_get_num_threads();
-    int id = omp_get_thread_num();
+    double startTotalTime = omp_get_wtime();
+    processCommandLineArgs(argc, argv, fileName, subSeq);
 
     double startReadTime = omp_get_wtime();
-    ParallelReader<char> pReader(fileName, MPI_CHAR, id, P);
-    vector<char> dnaChunk = pReader.readChunkPlus(subSeq.size()-1);
-    pReader.close();
-    #pragma omp master
-    readTime = omp_get_wtime() - startReadTime;
+    readFile(fileName, dna);
+    double readTime = omp_get_wtime() - startReadTime;
 
     double startScanTime = omp_get_wtime();
-    count = scan(dnaChunk, subSeq);
-    #pragma omp master
-    scanTime = omp_get_wtime() - startScanTime;
-  }
+    long count = scan(dna, subSeq);
+    double scanTime = omp_get_wtime() - startScanTime;
+    double totalTime = omp_get_wtime() - startTotalTime;
 
-  double totalTime = omp_get_wtime() - startTotalTime;
-
-  printResults(P, subSeq, count, 
-                 readTime, scanTime, totalTime);
+    printResults(subSeq, count,readTime, scanTime,totalTime);
 }
 

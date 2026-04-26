@@ -16,8 +16,8 @@
 #include <fstream>             // ifstream, etc.
 #include <cstdlib>             // exit()
 #include <omp.h>               // omp_get_wtime()
-#include <algorithm>           // search()
-#include "OO_MPI_IO.h"         // ParallelReader
+//#include <algorithm>           // search()
+//#include "OO_MPI_IO.h"         // ParallelReader
 using namespace std;
 
 
@@ -53,18 +53,18 @@ void processCommandLineArgs(int argc, char** argv,
  * Postcondition: seq contains the chars from the input file.
  */
 void readFile(const string& fileName, string& seq) {
-  ifstream fin(fileName.data()); // open file
-  if (! fin.is_open()) {         // check it
-     cerr << "\n *** Unable to open '" << fileName
-          << "' as input file\n\n";
-     exit(1);
-  } 
-  fin.seekg(0, std::ios::end);   // jump to end
-  long N = fin.tellg();          // N = fin's offset 
-  fin.seekg(0, std::ios::beg);   // undo jump
-  seq.resize(N);                 // resize seq to N
-  fin.get((char*)seq.data(), N); // read N bytes
-  fin.close();                   // clean up
+   ifstream fin(fileName.data());
+   if (! fin.is_open()) {
+      cerr << "\n *** Unable to open '" << fileName
+           << "' as input file\n\n";
+      exit(1);
+   } 
+   char ch = fin.get();
+   while (fin) {
+     seq += ch;
+     ch = fin.get();
+   }
+   fin.close();
 }
 
 /* scan a string containing a genetic sequence for a subsequence
@@ -76,14 +76,17 @@ void readFile(const string& fileName, string& seq) {
              of subSeq within seq.
  */
 long scan(const string& seq, const string& subSeq) {
-   long skip = subSeq.size();
-   long count = 0;
-   size_t pos = seq.find(subSeq, 0);
-   while (pos != string::npos) {
-      ++count; 
-      pos = seq.find(subSeq, pos+skip);
-   } 
-   return count;
+   size_t subSeqSize = subSeq.size();
+   long seqStop = seq.size() - subSeqSize + 1;
+   long skip = subSeqSize - 1;
+   long occurrences = 0;
+   for (long i = 0; i < seqStop; ++i) {
+      if (seq.substr(i, subSeqSize) == subSeq) { // if they match
+         i += skip;
+         ++occurrences;
+      }
+   }   
+   return occurrences; 
 }
 
 /* output results of scan
@@ -109,37 +112,22 @@ void printResults(const string& subSeq, long numSubSeqs,
 
 // --------- main function ---------------------
 int main(int argc, char** argv) { 
-  string fileName;
-  string subSeq;
+    string fileName;
+    string subSeq;
+    string dna;
 
-  double startTotalTime = omp_get_wtime();
-  processCommandLineArgs(argc, argv, fileName, subSeq);
-
-  long count = 0;
-  int P = 0;
-  double readTime = 0.0, scanTime = 0.0;
-
-  #pragma omp parallel reduction(+:count)
-  {
-    P = omp_get_num_threads();
-    int id = omp_get_thread_num();
+    double startTotalTime = omp_get_wtime();
+    processCommandLineArgs(argc, argv, fileName, subSeq);
 
     double startReadTime = omp_get_wtime();
-    ParallelReader<char> pReader(fileName, MPI_CHAR, id, P);
-    vector<char> dnaChunk = pReader.readChunkPlus(subSeq.size()-1);
-    pReader.close();
-    #pragma omp master
-    readTime = omp_get_wtime() - startReadTime;
+    readFile(fileName, dna);
+    double readTime = omp_get_wtime() - startReadTime;
 
     double startScanTime = omp_get_wtime();
-    count = scan(dnaChunk, subSeq);
-    #pragma omp master
-    scanTime = omp_get_wtime() - startScanTime;
-  }
+    long count = scan(dna, subSeq);
+    double scanTime = omp_get_wtime() - startScanTime;
+    double totalTime = omp_get_wtime() - startTotalTime;
 
-  double totalTime = omp_get_wtime() - startTotalTime;
-
-  printResults(P, subSeq, count, 
-                 readTime, scanTime, totalTime);
+    printResults(subSeq, count,readTime, scanTime,totalTime);
 }
 

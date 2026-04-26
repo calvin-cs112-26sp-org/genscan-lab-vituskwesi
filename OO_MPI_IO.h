@@ -24,7 +24,6 @@
 
 #ifndef OO_MPI_IO
 #define OO_MPI_IO
-
 #include <mpi.h>                     // C MPI
 #include <omp.h>                     // C OpenMP
 #include <string>                    // C++ string 
